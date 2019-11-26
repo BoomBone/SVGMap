@@ -9,11 +9,11 @@ data class ProvinceItem(
     val path: Path,
     val name: String,
     //模块颜色
-    val drawColor: Int,
-    //显示省份信息
-    val clickPoint: PointF
+    val drawColor: Int
 
 ) {
+    //显示省份信息
+    var clickPoint: PointF? = null
 
     /**
      * 判断点击区域是否在当前省份
