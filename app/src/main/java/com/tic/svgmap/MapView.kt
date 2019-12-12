@@ -32,7 +32,9 @@ class MapView @JvmOverloads constructor(
 
 
     private val loadThread = Thread {
+        //获取svg图片输入流
         val inputStream = context.resources.openRawResource(R.raw.unitedkingdom_high)
+        //创建解析类DocumentBuilder
         val builderFactory = DocumentBuilderFactory.newInstance()
         var builder: DocumentBuilder? = null
         try {
@@ -47,6 +49,7 @@ class MapView @JvmOverloads constructor(
             var top = -1f
             var bottom = -1f
             val list = mutableListOf<ProvinceItem>()
+
 
             for (i in 0 until pathNodeList.length) {
                 val element = pathNodeList.item(i) as Element
