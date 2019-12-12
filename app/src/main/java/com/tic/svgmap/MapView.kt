@@ -7,8 +7,10 @@ import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
 import androidx.core.graphics.PathParser
+import androidx.core.graphics.withSave
 import org.w3c.dom.Element
 import javax.xml.parsers.DocumentBuilder
 import javax.xml.parsers.DocumentBuilderFactory
@@ -80,9 +82,40 @@ class MapView @JvmOverloads constructor(
         }
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        //获取当前控件的宽高
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val height = MeasureSpec.getSize(heightMeasureSpec)
+
+        //获取缩放系数，占满整个空间
+        if (totalRect != null) {
+            //获取地图的宽度
+            val mapWidth = if (left < 0) {
+                totalRect!!.right - totalRect!!.left
+            } else {
+                totalRect!!.right + totalRect!!.left
+            }
+
+            scale = width / mapWidth
+            Log.e(
+                "main", "height=$height,width=$width,mapWidth=$mapWidth," +
+                        "left=${totalRect?.left},right=${totalRect?.right}"
+            )
+        }
+
+
+        setMeasuredDimension(
+            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
+        )
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (itemList.size > 0) {
+            canvas.save()
+            canvas.scale(scale, scale)
             for (proviceItem in itemList) {
                 if (proviceItem == select) {
                     proviceItem.drawItem(
@@ -94,8 +127,10 @@ class MapView @JvmOverloads constructor(
                     )
                 }
             }
+            canvas.restore()
         }
     }
+
 
     init {
         mPaint.isAntiAlias = true
