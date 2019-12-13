@@ -1,8 +1,7 @@
 # SVG矢量图打造不规则自定义控件
 
 Android默认不能直接支持的svg格式的，需要先将文件转换成vector矢量图
-
-
+示例代码地址：[SVGMap](https://github.com/BoomBone/SVGMap)
 
 ### SVG在Android中能做什么
 
@@ -21,31 +20,7 @@ Android默认不能直接支持的svg格式的，需要先将文件转换成vect
 - S = smooth curveto(S X1,Y1,ENDX,ENDY):平滑过度
 - Z = closepath():闭合路径
 
-## 示例，完成地图绘制，并且能够正常点击省份
-
-需求分析
-
-1. 显示SVG
-2. 各个省份可以单独点击
-3. 缩放及拖动
-
-> 下载SVG地图的网站[https://www.amcharts.com/svg-maps/](https://www.amcharts.com/svg-maps/)
-
-注SVG图片转换为xml文件时，会提示报错，根据提示修改SVG文
-
-转xml方法：右键->New->Vector asset
-
-#### 显示SVG
-
-1.如何解析获取svg中的信息？
-
-1.1拆分各个省份：名称，路径信息，颜色
-
-1.2解析文件并在画布中绘制
-
-1.3点击事件处理（缩放 平移）(单指 点击拖动)（双指 放大）
-
-SVG文件示例（就是我们平时常见的xml文件)
+### SVG文件示例（就是我们平时常见的xml文件)
 ```
 <?xml version="1.0" encoding="utf-8"?>
 <!-- (c) ammap.com | SVG map of United Kingdom - High -->
@@ -76,12 +51,34 @@ SVG文件示例（就是我们平时常见的xml文件)
 		...
 ```
 
+## 示例，完成地图绘制(UK)，并且能够正常点击省份
+
+**需求分析**
+
+- 1. 显示SVG
+- 2. 各个省份可以单独点击
+- 3. 缩放及拖动
+
+> 下载SVG地图的网站[https://www.amcharts.com/svg-maps/](https://www.amcharts.com/svg-maps/)
+
+#### 如果只需要显示图片，只需要转化就好，按照下面的方法
+***注:SVG图片转换为xml文件时，会提示报错，根据提示修改SVG文***
+
+>转xml方法：文件夹右键->New->Vector asset
+
+---
+
+#### Step1:显示地图
+>Q:1.如何解析获取svg中的信息？A: 1.1拆分各个省份：名称，路径信息，颜色;1.2解析文件并在画布中绘制
+
 显示图片的代码
 Step1:使用系统方法解析文件，创建path集合（通过DocumentBuilder）
 Step2：轮训path集合，获取数据存储。（使用PathParser将pathdata转换为Path实例）
 Step3：轮训完毕，调用重新绘制方法，在onDraw中进行绘制
 
+主要代码
 ```
+ //开线程进行数据解析
     private val loadThread = Thread {
         //获取svg图片输入流
         val inputStream = context.resources.openRawResource(R.raw.unitedkingdom_high)
@@ -101,7 +98,7 @@ Step3：轮训完毕，调用重新绘制方法，在onDraw中进行绘制
             var bottom = -1f
             val list = mutableListOf<ProvinceItem>()
 
-            
+
             for (i in 0 until pathNodeList.length) {
                 val element = pathNodeList.item(i) as Element
                 val pathData = element.getAttribute("d")
@@ -130,27 +127,46 @@ Step3：轮训完毕，调用重新绘制方法，在onDraw中进行绘制
 
         }
     }
-     override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        if (itemList.size > 0) {
-            for (proviceItem in itemList) {
-                if (proviceItem == select) {
-                    proviceItem.drawItem(
-                        canvas, mPaint, true
-                    )
-                } else {
-                    proviceItem.drawItem(
-                        canvas, mPaint, false
-                    )
-                }
-            }
+    
+    /**
+     * Path绘制
+     */
+    fun drawItem(canvas: Canvas, paint: Paint, isSelect: Boolean) {
+        if (isSelect) {
+            //绘制内部颜色
+            paint.clearShadowLayer()
+            paint.strokeWidth = 1f
+            paint.color = drawColor
+            paint.style = Paint.Style.FILL
+            canvas.drawPath(path, paint)
+            //绘制边界
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.YELLOW
+            canvas.drawPath(path, paint)
+        } else {
+            paint.strokeWidth = 2f
+            paint.color = Color.BLACK
+            paint.style = Paint.Style.FILL
+            paint.setShadowLayer(8f, 0f, 0f, Color.WHITE)
+            canvas.drawPath(path, paint)
+
+            paint.clearShadowLayer()
+            paint.color = drawColor
+            paint.style = Paint.Style.FILL
+            canvas.drawPath(path, paint)
         }
-    }
-
+    }   
 ```
+
 ProvinceItem.kt
-
 ```
+package com.tic.svgmap
+
+import android.graphics.*
+
+/**
+ * Created by Ting on 2019-11-24.
+ */
 data class ProvinceItem(
     val path: Path,
     val name: String,
@@ -213,4 +229,160 @@ data class ProvinceItem(
     }
 
 }
+```
+
+### Setp2 实现拖拽点击
+
+1.拖拽，放大缩小
+解决方法：通过onTouchEvent的Event动作状态,判断单机双击，进行相对应操作
+主要代码
+```
+
+    /**
+     * 单指点击拖动，双指放大
+     */
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val x = event.x
+        val y = event.y
+
+        //当前缩放系数
+        var currentScaleCount = 0f
+        //当前x平移距离
+        var currentTranslateX = 0f
+        //当前y平移距离
+        var currentTranslateY = 0f
+
+
+        when (event.action and MotionEvent.ACTION_MASK) {
+            MotionEvent.ACTION_DOWN -> {
+                //单点触控
+                startPoint.set(event.x, event.y)
+                mode = DRAG
+                actionClick = true
+
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                //多点触控
+                oriDis = distance(event)
+                if (oriDis > 10) {
+                    midPoint = midPoint(event)
+                    mode = ZOOM
+                }
+                actionClick = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                //滑动
+                if (mode == DRAG) {
+                    //单指拖动
+                    if (abs(x - startPoint.x) > 10 || abs(y - startPoint.y) > 10) {
+                        currentTranslateX = translateX + x - startPoint.x
+                        currentTranslateY = translateY + y - startPoint.y
+                        translateX = currentTranslateX
+                        translateY = currentTranslateY
+                        startPoint.set(x, y)
+                        actionClick = false
+                        invalidate()
+                    }
+
+                } else if (mode == ZOOM) {
+                    //两指缩放
+                    //当前两指距离
+                    val newDist = distance(event)
+                    if (abs(newDist - oriDis) > 10) {
+                        val scaleInner = newDist / oriDis
+                        currentScaleCount = scale + (scaleInner - 1)
+                        if (currentScaleCount < 1) {
+                            scale = 1f
+                        } else {
+                            scale = currentScaleCount
+                        }
+
+                        oriDis = newDist
+                        invalidate()
+                    }
+
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                mode = NONE
+                if (actionClick) {
+                    handleTouch(x / scale - translateX, y / scale - translateY)
+                }
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                //多点触控
+                mode = NONE
+            }
+        }
+        return true
+    }
+    
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (itemList.size > 0) {
+            canvas.save()
+            canvas.scale(scale, scale)
+            canvas.translate(translateX, translateY)
+            for (proviceItem in itemList) {
+                if (proviceItem == select) {
+                    proviceItem.drawItem(
+                        canvas, mPaint, true
+                    )
+                } else {
+                    proviceItem.drawItem(
+                        canvas, mPaint, false
+                    )
+                }
+            }
+            if (shouldShowText) {
+                //绘制文本
+                mPaint.color = Color.RED
+                mPaint.style = Paint.Style.FILL
+                mPaint.textSize = 40f
+                if (select != null && select?.clickPoint != null) {
+                    canvas.drawText(
+                        select!!.name,
+                        select!!.clickPoint!!.x,
+                        select!!.clickPoint!!.y,
+                        mPaint
+                    )
+                }
+            }
+
+            canvas.restore()
+        }
+    }
+
+```
+2.点击显示
+
+当收到抬起动作的时候，传入对应的x,y值
+```
+  MotionEvent.ACTION_UP -> {
+                mode = NONE
+                if (actionClick) {
+                    handleTouch(x / scale - translateX, y / scale - translateY)
+                }
+            }
+```
+
+```
+  private fun handleTouch(x: Float, y: Float) {
+        shouldShowText = false
+        if (itemList.size > 0) {
+            var selectItem: ProvinceItem? = null
+            for (provinceItem in itemList) {
+                if (provinceItem.isTouch(x, y)) {
+                    selectItem = provinceItem
+                    provinceItem.clickPoint = PointF(x, y)
+                    shouldShowText = true
+                }
+            }
+            if (selectItem != null) {
+                select = selectItem
+                postInvalidate()
+            }
+        }
+    }
 ```

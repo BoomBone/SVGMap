@@ -57,6 +57,7 @@ class MapView @JvmOverloads constructor(
     var shouldShowText = false
 
 
+    //开线程进行数据解析
     private val loadThread = Thread {
         //获取svg图片输入流
         val inputStream = context.resources.openRawResource(R.raw.unitedkingdom_high)
